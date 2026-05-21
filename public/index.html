@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Preview Stromtarife 2027</title>
+  <meta name="description" content="Preview Stromtarife 2027 – Dynamischer Tarif vs. Standard Tarif" />
+
+  <link rel="stylesheet" href="styles.css" />
+
+  <!-- Chart.js (muss vor app.js geladen sein) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+
+<body>
+  <main class="container main">
+    <header class="page-title">
+      <h1>Preview Stromtarife 2027</h1>
+      <p>Vergleich <strong>Dynamischer Tarif</strong> (aus API, „integrated“) und <strong>Standard Tarif</strong> (fixes Zeitmodell). Optional: Markierung der günstigsten 4h im dynamischen Tarif.</p>
+    </header>
+
+    <section class="card">
+      <div class="controls">
+        <div class="field">
+          <label for="date">Datum</label>
+          <input id="date" type="date" />
+        </div>
+
+        <div class="row">
+          <button id="load" class="btn primary" type="button">Werte laden</button>
+          <button id="today" class="btn" type="button">Heute</button>
+          <button id="prev" class="btn" type="button">◀︎</button>
+          <button id="next" class="btn" type="button">▶︎</button>
+        </div>
+
+        <div class="toggles">
+          <label class="toggle">
+            <input type="checkbox" id="shadeCheapest" checked>
+            <span>günstigste 4h markieren</span>
+          </label>
+        </div>
+
+        <div class="spacer"></div>
+        <div class="status" id="status">bereit</div>
+      </div>
+
+      <div class="kpis">
+        <div class="kpi"><div class="kpiLabel">Günstigste 4h (Dynamischer Tarif)</div><div class="kpiValue" id="kpiWindow">–</div></div>
+        <div class="kpi"><div class="kpiLabel">Ø in günstigsten 4h</div><div class="kpiValue" id="kpiAvg">–</div></div>
+        <div class="kpi"><div class="kpiLabel">Min / Max (Dynamischer Tarif)</div><div class="kpiValue" id="kpiMinMax">–</div></div>
+      </div>
+
+      <div class="chartWrap">
+        <canvas id="chart"></canvas>
+      </div>
+
+      <details class="details">
+        <summary>Debug</summary>
+        <pre id="debug"></pre>
+      </details>
+    </section>
+
+    <footer class="footer">
+      <div class="footer-note">© 2026 • Preview/Prototyp</div>
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>

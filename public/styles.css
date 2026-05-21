@@ -1,0 +1,52 @@
+/*
+  Schlankes Layout ohne Header/Hero.
+  (Weiterhin angelehnt an den hellen, klaren Stil.)
+*/
+:root{
+  --bg:#f6f2ee;
+  --card:#ffffff;
+  --text:#0b1b2b;
+  --muted:#556779;
+  --border:rgba(12,37,66,.12);
+  --shadow:0 10px 28px rgba(12,37,66,.10);
+  --blue:#0b3a7a;
+}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:var(--text);background:linear-gradient(180deg,#fff 0%, var(--bg) 55%)}
+.container{max-width:1120px;margin:0 auto;padding:0 18px}
+.main{padding:26px 0 28px}
+
+.page-title{padding:6px 0 8px}
+.page-title h1{margin:0;font-size:56px;letter-spacing:-.8px;font-weight:900;color:var(--blue)}
+.page-title p{margin:10px 0 0;font-size:16px;line-height:1.55;color:var(--muted);max-width:80ch}
+
+.card{background:var(--card);border:1px solid var(--border);border-radius:18px;box-shadow:var(--shadow);padding:16px;margin:14px 0}
+.controls{display:flex;flex-wrap:wrap;gap:12px;align-items:flex-end}
+.field{display:flex;flex-direction:column;gap:6px;min-width:220px}
+label{font-size:12px;color:var(--muted)}
+input[type=date]{padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:#fff;color:var(--text)}
+.row{display:flex;gap:8px;flex-wrap:wrap}
+.btn{padding:10px 12px;border-radius:12px;border:1px solid var(--border);background:#fff;color:var(--text);cursor:pointer;font-weight:750}
+.btn:hover{border-color:rgba(11,58,122,.35)}
+.btn.primary{background:linear-gradient(135deg, rgba(11,58,122,.95), rgba(11,58,122,.84));color:#fff;border-color:transparent}
+
+.toggles{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+.toggle{display:flex;gap:8px;align-items:center;font-size:13px;color:var(--muted);padding:8px 10px;border:1px solid var(--border);border-radius:999px;background:#fff}
+.toggle input{accent-color:var(--blue)}
+
+.spacer{flex:1}
+.status{font-size:13px;color:var(--muted)}
+
+.kpis{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;margin:14px 0 10px}
+@media (max-width:900px){.kpis{grid-template-columns:1fr}.page-title h1{font-size:40px}}
+.kpi{border:1px solid var(--border);border-radius:16px;padding:12px;background:linear-gradient(180deg,#fff,#fbfcfe)}
+.kpiLabel{font-size:12px;color:var(--muted)}
+.kpiValue{font-size:18px;font-weight:900;margin-top:4px;color:var(--blue)}
+
+.chartWrap{border:1px solid var(--border);border-radius:16px;padding:10px;background:#fff;height:460px}
+.details{margin-top:12px}
+.details summary{cursor:pointer;font-weight:800;color:var(--blue)}
+pre{white-space:pre-wrap;word-break:break-word;margin:10px 0 0;background:#0b1220;color:#e6eefb;border-radius:14px;padding:12px;border:1px solid rgba(255,255,255,.08)}
+
+.footer{padding:18px 0 6px;text-align:center}
+.footer-note{color:var(--muted);font-size:12.5px}
