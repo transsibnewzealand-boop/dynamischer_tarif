@@ -1,58 +1,50 @@
-// Netlify Function: holt Tarife serverseitig (Token bleibt geheim).
-// Liefert normalisierte Daten: { date, series: { integrated: [...], grid: [...] }, debug: {...} }
+// Netlify Function v2 – nutzt den funktionierenden Endpoint aus deinem Screenshot.
 //
-// Konfiguration via Netlify Environment Variables:
-//   DST_TOKEN           = Bearer Token
-//   DST_METERING_CODE   = z.B. CH1038...
-//   DST_API_BASE        = optional, Default: https://portal.dynamische-stromtarife.ch/api/v2
-//   DST_URL_TEMPLATE    = optional: vollständige URL mit Platzhaltern {date} {product} {metering_code}
-//                         Beispiel: https://.../prices?filter[date]={date}&filter[product]={product}&filter[metering_code]={metering_code}
+// Endpoint (laut Screenshot):
+//   GET {base}/metering_code
+// Query:
+//   tariff_type   = integrated | grid
+//   start_timestamp (ISO, required)
+//   end_timestamp   (ISO, required)
+//   metering_code   (required)
 //
-// Da die exakte API-Struktur je nach Umfeld variieren kann, probieren wir mehrere Templates.
+// Response enthält:
+//   publication_timestamp
+//   prices: [ { start_timestamp, end_timestamp, integrated:[{value,unit}], grid:[{value,unit}] } ... ]
+//
+// Env Vars:
+//   DST_TOKEN
+//   DST_METERING_CODE
+//   DST_API_BASE (optional) default https://portal.dynamische-stromtarife.ch/api/v2
 
 const DEFAULT_BASE = 'https://portal.dynamische-stromtarife.ch/api/v2';
 
-const DEFAULT_TEMPLATES = [
-  '{base}/prices?filter[date]={date}&filter[product]={product}&filter[metering_code]={metering_code}',
-  '{base}/prices?filter[date]={date}&filter[tariff_type]={product}&filter[metering_code]={metering_code}',
-  '{base}/prices?filter[date]={date}&filter[product]={product}',
-  '{base}/prices?filter[date]={date}&filter[tariff_type]={product}',
-  '{base}/metering_points/{metering_code}/prices?filter[date]={date}&filter[product]={product}',
-  '{base}/meters/{metering_code}/prices?filter[date]={date}&filter[product]={product}',
-];
-
-function fillTemplate(tpl, vars){
-  return tpl
-    .replaceAll('{base}', vars.base)
-    .replaceAll('{date}', encodeURIComponent(vars.date))
-    .replaceAll('{product}', encodeURIComponent(vars.product))
-    .replaceAll('{metering_code}', encodeURIComponent(vars.metering_code || ''));
+function isoRangeForDate(dateStr){
+  // dateStr = YYYY-MM-DD
+  // We will request local time +02:00 as shown in screenshot.
+  // Without timezone libs, we assume Europe/Zurich offset; user can override by providing full ISO in future if needed.
+  const start = `${dateStr}T00:00:00+02:00`;
+  const end = `${dateStr}T23:59:59+02:00`;
+  return { start, end };
 }
 
-async function tryFetch(url, token){
-  const resp = await fetch(url, {
-    headers: {
-      'Authorization': `Bearer ${token}`,
-      'Accept': 'application/json'
-    }
-  });
-  const text = await resp.text();
-  let json = null;
-  try{ json = JSON.parse(text); } catch{ /* keep null */ }
-  return { status: resp.status, ok: resp.ok, url, text, json };
+function asBearer(token){
+  // Screenshot tool might accept raw token as value; API docs often require 'Bearer <token>'.
+  // We'll send Bearer always; if user already includes 'Bearer', avoid double.
+  return token.toLowerCase().startsWith('bearer ') ? token : `Bearer ${token}`;
 }
 
-function pickArray(json){
-  // Best effort: find an array of points
-  if(Array.isArray(json)) return json;
-  if(!json || typeof json !== 'object') return null;
-  const keys = ['data','prices','items','result','values'];
-  for(const k of keys){ if(Array.isArray(json[k])) return json[k]; }
-  // search first-level arrays
-  for(const k of Object.keys(json)){
-    if(Array.isArray(json[k])) return json[k];
+function extractValue(entry, tariffType){
+  // entry might contain e.g. entry.integrated = [{value, unit}] OR entry.grid = [...]
+  const key = tariffType;
+  const arr = entry?.[key];
+  if(Array.isArray(arr) && arr.length){
+    const v = arr[0]?.value;
+    return (typeof v === 'number') ? v : (v!=null ? Number(String(v).replace(',','.')) : null);
   }
-  return null;
+  // sometimes can be direct value
+  const v2 = entry?.value;
+  return (typeof v2 === 'number') ? v2 : null;
 }
 
 exports.handler = async (event) => {
@@ -66,45 +58,62 @@ exports.handler = async (event) => {
   const base = (process.env.DST_API_BASE || DEFAULT_BASE).replace(/\/$/, '');
 
   if(!token){
-    return { statusCode: 500, headers: cors(), body: JSON.stringify({ error: 'DST_TOKEN not set (Netlify → Site settings → Environment variables)' }) };
+    return { statusCode: 500, headers: cors(), body: JSON.stringify({ error: 'DST_TOKEN not set in Netlify environment variables' }) };
+  }
+  if(!metering_code){
+    return { statusCode: 500, headers: cors(), body: JSON.stringify({ error: 'DST_METERING_CODE not set in Netlify environment variables' }) };
   }
 
-  const userTpl = process.env.DST_URL_TEMPLATE;
-  const templates = userTpl ? [userTpl, ...DEFAULT_TEMPLATES] : DEFAULT_TEMPLATES;
+  const { start, end } = isoRangeForDate(date);
 
-  async function fetchSeries(product){
-    const attempts = [];
-    for(const tpl of templates){
-      const url = fillTemplate(tpl, { base, date, product, metering_code });
-      const r = await tryFetch(url, token);
-      attempts.push({ url: r.url, status: r.status, ok: r.ok });
-      if(r.ok && r.json){
-        const arr = pickArray(r.json);
-        if(arr) return { ok: true, data: arr, chosen: url, attempts };
+  async function fetchTariff(tariff_type){
+    const u = new URL(base + '/metering_code');
+    u.searchParams.set('tariff_type', tariff_type);
+    u.searchParams.set('start_timestamp', start);
+    u.searchParams.set('end_timestamp', end);
+    u.searchParams.set('metering_code', metering_code);
+
+    const resp = await fetch(u.toString(), {
+      headers: {
+        'Authorization': asBearer(token),
+        'Accept': 'application/json'
       }
-    }
-    return { ok: false, data: [], chosen: null, attempts };
+    });
+    const text = await resp.text();
+    let json=null;
+    try{ json = JSON.parse(text); } catch{}
+    return { ok: resp.ok, status: resp.status, url: u.toString(), json, text };
   }
 
-  const integrated = await fetchSeries('integrated');
-  const grid = await fetchSeries('grid');
+  const rIntegrated = await fetchTariff('integrated');
+  const rGrid = await fetchTariff('grid');
+
+  // Build normalized series as [{t, v}] 
+  function normalize(resp, tariffType){
+    if(!resp.ok || !resp.json) return [];
+    const prices = resp.json.prices;
+    if(!Array.isArray(prices)) return [];
+    return prices.map(p=>({
+      t: p.start_timestamp || p.time || p.starts_at || p.start,
+      v: extractValue(p, tariffType)
+    })).filter(p=>p.t!=null && p.v!=null);
+  }
 
   const out = {
     date,
     series: {
-      integrated: integrated.data,
-      grid: grid.data
+      integrated: normalize(rIntegrated, 'integrated'),
+      grid: normalize(rGrid, 'grid')
     },
     debug: {
       base,
-      metering_code: metering_code ? (metering_code.slice(0,8) + '…' + metering_code.slice(-6)) : null,
-      integrated: { chosen: integrated.chosen, attempts: integrated.attempts },
-      grid: { chosen: grid.chosen, attempts: grid.attempts }
+      metering_code: metering_code.slice(0,8) + '…' + metering_code.slice(-6),
+      integrated: { status: rIntegrated.status, url: rIntegrated.url },
+      grid: { status: rGrid.status, url: rGrid.url }
     }
   };
 
-  // If both failed, return 502 so frontend shows debug
-  const okAny = (integrated.ok || grid.ok);
+  const okAny = out.series.integrated.length || out.series.grid.length;
   return {
     statusCode: okAny ? 200 : 502,
     headers: { ...cors(), 'Content-Type': 'application/json' },

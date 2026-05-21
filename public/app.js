@@ -1,4 +1,5 @@
 // Frontend: lädt grid + integrated vom Server (Netlify Function) und zeichnet Chart.
+// Erwartet Response: { date, series: { integrated: [{t,v}], grid:[{t,v}] }, debug }
 
 let chart;
 let lastPayload = null;
@@ -22,23 +23,10 @@ function yyyy_mm_dd(d){
 
 function setStatus(t){ elStatus.textContent = t; }
 
-function normalizePoints(arr){
-  // arr is array of objects or numbers
-  if(!Array.isArray(arr)) return [];
-  return arr.map((o,i)=>{
-    if(o==null) return null;
-    if(typeof o==='number') return { t: i, v: o };
-    const time = o.time || o.starts_at || o.start || o.datetime || o.timestamp || o.ts || o.interval_start || o.period_start;
-    const val = (o.value ?? o.price ?? o.amount ?? o.v ?? o.tariff ?? o.rp_per_kwh);
-    return (val==null) ? null : { t: time ?? i, v: val };
-  }).filter(Boolean);
-}
-
 function toLabels(pts){
   return pts.map((p,idx)=>{
     const t = p.t;
     if(typeof t === 'string'){
-      // ISO timestamp -> HH:MM
       const m = t.match(/T(\d\d):(\d\d)/);
       if(m) return `${m[1]}:${m[2]}`;
       const m2 = t.match(/^(\d\d):(\d\d)/);
@@ -60,7 +48,6 @@ function toValues(pts){
 }
 
 function detectIntervalMinutes(labels){
-  // Best effort: if labels are HH:MM, infer interval by first delta
   if(labels.length < 3) return 15;
   const parse = (s)=>{
     const m = String(s).match(/^(\d{2}):(\d{2})$/);
@@ -75,28 +62,26 @@ function detectIntervalMinutes(labels){
 }
 
 function slidingCheapestWindow(values, windowLen){
-  // Returns {start, endExclusive, avg}
   const n = values.length;
   if(n < windowLen) return null;
   let best = null;
   for(let i=0;i<=n-windowLen;i++){
-    let sum=0; let cnt=0;
+    let sum=0;
     for(let j=0;j<windowLen;j++){
       const v = values[i+j];
-      if(v==null) { cnt = -1; break; }
-      sum += v; cnt++;
+      if(v==null) { sum = null; break; }
+      sum += v;
     }
-    if(cnt !== windowLen) continue;
+    if(sum==null) continue;
     const avg = sum/windowLen;
     if(best==null || avg < best.avg){ best = { start:i, end:i+windowLen, avg }; }
   }
   return best;
 }
 
-// Chart.js plugin to shade cheapest window
 const cheapestShadePlugin = {
   id: 'cheapestShade',
-  beforeDatasetsDraw(chart, args, pluginOptions){
+  beforeDatasetsDraw(chart){
     const opts = chart?.config?.options?.plugins?.cheapestShade;
     if(!opts || !opts.enabled || opts.start==null) return;
     const { ctx, chartArea, scales } = chart;
@@ -116,7 +101,6 @@ const cheapestShadePlugin = {
     const top = chartArea.top;
     const height = chartArea.bottom - chartArea.top;
 
-    // rounded rect
     const r = 8;
     const w = right-left;
     if(w>2){
@@ -141,36 +125,28 @@ function roundRect(ctx, x, y, w, h, r){
 
 function render(payload){
   lastPayload = payload;
-  const series = payload.series || {};
 
-  const ptsIntegrated = normalizePoints(series.integrated || []);
-  const ptsGrid = normalizePoints(series.grid || []);
+  const ptsIntegrated = Array.isArray(payload.series?.integrated) ? payload.series.integrated : [];
+  const ptsGrid = Array.isArray(payload.series?.grid) ? payload.series.grid : [];
 
-  // build labels from integrated if available, else from grid
   const basePts = ptsIntegrated.length ? ptsIntegrated : ptsGrid;
   const labels = toLabels(basePts);
 
   const valuesIntegrated = ptsIntegrated.length ? toValues(ptsIntegrated) : labels.map(()=>null);
   const valuesGrid = ptsGrid.length ? toValues(ptsGrid) : labels.map(()=>null);
 
-  // cheapest 4h based on integrated
   const interval = detectIntervalMinutes(labels);
   const windowLen = Math.max(1, Math.round(240 / interval));
   const cheapest = slidingCheapestWindow(valuesIntegrated, windowLen);
 
-  // KPIs
   if(cheapest){
     const startLabel = labels[cheapest.start];
     const endLabel = labels[cheapest.end-1];
     elKpiWindow.textContent = `${startLabel}–${endLabel}`;
-    elKpiAvg.textContent = `${cheapest.avg.toFixed(2)} Rp./kWh`;
+    elKpiAvg.textContent = `${cheapest.avg.toFixed(3)} Rp./kWh`;
 
     const nums = valuesIntegrated.filter(v=>v!=null);
-    if(nums.length){
-      elKpiMinMax.textContent = `${Math.min(...nums).toFixed(2)} / ${Math.max(...nums).toFixed(2)} Rp./kWh`;
-    } else {
-      elKpiMinMax.textContent = '–';
-    }
+    elKpiMinMax.textContent = nums.length ? `${Math.min(...nums).toFixed(3)} / ${Math.max(...nums).toFixed(3)} Rp./kWh` : '–';
   } else {
     elKpiWindow.textContent = '–';
     elKpiAvg.textContent = '–';
@@ -256,10 +232,8 @@ async function load(){
   }
 }
 
-// init
 elDate.value = yyyy_mm_dd(new Date());
 
-// events
 document.getElementById('load').addEventListener('click', load);
 document.getElementById('today').addEventListener('click', ()=>{ elDate.value = yyyy_mm_dd(new Date()); load(); });
 document.getElementById('prev').addEventListener('click', ()=>{ const d=new Date(elDate.value); d.setDate(d.getDate()-1); elDate.value=yyyy_mm_dd(d); load(); });
