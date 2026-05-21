@@ -41,15 +41,22 @@
         -->
       </div>
 
-      <div class="kpis">
-        <div class="kpi"><b>Günstigste 4h:</b><div id="kpiWindow">–</div></div>
-        <div class="kpi"><b>Ø Preis:</b><div id="kpiAvg">–</div></div>
-        <div class="kpi"><b>Min / Max:</b><div id="kpiMinMax">–</div></div>
-      </div>
+      <div class="toggles" style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+  <label style="display:flex;gap:6px;align-items:center">
+    <input type="checkbox" id="showIntegrated" checked />
+    <span>integrated</span>
+  </label>
 
-      <div class="chartWrap">
-        <canvas id="chart"></canvas>
-      </div>
+  <label style="display:flex;gap:6px;align-items:center">
+    <input type="checkbox" id="showGrid" checked />
+    <span>grid</span>
+  </label>
+
+  <label style="display:flex;gap:6px;align-items:center">
+    <input type="checkbox" id="shadeCheapest" checked />
+    <span>günstigste 4h markieren</span>
+  </label>
+</div>
 
       <details>
         <summary>Debug</summary>
