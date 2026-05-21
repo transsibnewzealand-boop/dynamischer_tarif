@@ -227,8 +227,8 @@ function render(payload){
         }
       },
       scales: {
-        x: { beginAtZero: true, ticks: { maxTicksLimit: 12, color: '#53657a' }, grid: { color: 'rgba(12,37,66,.06)' } },
-        y: { ticks: { color: '#53657a' }, grid: { color: 'rgba(12,37,66,.06)' }, title: { display: true, text: 'Rp./kWh', color:'#53657a' } }
+        x: { ticks: { maxTicksLimit: 12, color: '#53657a' }, grid: { color: 'rgba(12,37,66,.06)' } },
+        y: { beginAtZero: true, ticks: { color: '#53657a' }, grid: { color: 'rgba(12,37,66,.06)' }, title: { display: true, text: 'Rp./kWh', color:'#53657a' } }
       }
     },
     plugins: [cheapestShadePlugin]
